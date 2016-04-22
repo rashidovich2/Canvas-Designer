@@ -1,4 +1,4 @@
-// Last time updated: 2016-04-17 12:40:31 PM UTC
+// Last time updated: 2016-04-02 6:49:49 AM UTC
 
 // _______________
 // Canvas-Designer
@@ -20,6 +20,7 @@
         isPencil: false,
         isEraser: false,
         isText: false,
+        isMarker: false,
         isImage: false,
 
         set: function(shape) {
@@ -43,10 +44,44 @@
         return document.getElementById(selector);
     }
 
+    function clone(obj) {
+      if (obj === null || typeof(obj) !== 'object' || 'isActiveClone' in obj)
+        return obj;
+
+      if (obj instanceof Date)
+        var temp = new obj.constructor(); //or new Date(obj);
+      else
+        var temp = obj.constructor();
+
+      for (var key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          obj['isActiveClone'] = null;
+          temp[key] = clone(obj[key]);
+          delete obj['isActiveClone'];
+        }
+      }
+
+      return temp;
+    }
+    function hexToRGB(h) {
+        return [
+            hexToR(h),
+            hexToG(h),
+            hexToB(h)
+        ]
+    }
+    function hexToR(h) {return parseInt((cutHex(h)).substring(0,2),16)}
+    function hexToG(h) {return parseInt((cutHex(h)).substring(2,4),16)}
+    function hexToB(h) {return parseInt((cutHex(h)).substring(4,6),16)}
+    function cutHex(h) {return (h.charAt(0)=="#") ? h.substring(1,7):h}
+
     var points = [],
         textarea = find('code-text'),
         lineWidth = 2,
+        markerLineWidth = 8,
+        markerGlobalAlpha = 0.1,
         strokeStyle = '#6c96c8',
+        markerStrokeStyle = '#FF7373',
         fillStyle = 'transparent',
         globalAlpha = 1,
         globalCompositeOperation = 'source-over',
@@ -120,6 +155,10 @@
                 point = p[1];
 
                 if (p[0] === 'pencil') {
+                    tempArray[i] = ['context.beginPath();\n' + 'context.moveTo(' + point[0] + ', ' + point[1] + ');\n' + 'context.lineTo(' + point[2] + ', ' + point[3] + ');\n' + this.strokeOrFill(p[2])];
+                }
+
+                if (p[0] === 'marker') {
                     tempArray[i] = ['context.beginPath();\n' + 'context.moveTo(' + point[0] + ', ' + point[1] + ');\n' + 'context.lineTo(' + point[2] + ', ' + point[3] + ');\n' + this.strokeOrFill(p[2])];
                 }
 
@@ -737,6 +776,115 @@
             decoratePencil();
         } else document.getElementById('pencil-icon').style.display = 'none';
 
+        function decorateMarker() {
+
+            function hexToRGBA(h, alpha) {
+                return  'rgba('+hexToRGB(h).join(',')+','+alpha+')';
+            }
+            var colors = [
+                ['FFFFFF', '006600', '000099', 'CC0000', '8C4600'],
+                ['CCCCCC', '00CC00', '6633CC', 'FF0000', 'B28500'],
+                ['666666', '66FFB2', '006DD9', 'FF7373', 'FF9933'],
+                ['333333', '26FF26', '6699FF', 'CC33FF', 'FFCC99'],
+                ['000000', 'CCFF99', 'BFDFFF', 'FFBFBF', 'FFFF33']
+            ];
+
+            var context = getContext('marker-icon');
+            
+            context.lineWidth = 9;
+            context.lineCap = 'round';
+            context.strokeStyle = 'green';
+            context.moveTo(35, 20);
+            context.lineTo(5, 25);
+            context.stroke();
+
+            context.fillStyle = 'Gray';
+            context.font = '9px Verdana';
+            context.fillText('Marker', 6, 12);
+
+            bindEvent(context, 'Marker');
+
+            var markerContainer = find('marker-container'),
+                markerColorContainer = find('marker-fill-colors'),
+                strokeStyleText = find('marker-stroke-style'),
+                markerColorsList = find("marker-colors-list"),
+                fillStyleText = find('marker-fill-style'),
+                markerSelectedColor = find('marker-selected-color'),
+                markerSelectedColor2 = find('marker-selected-color-2'),
+                btnMarkerDone = find('marker-done'),
+                canvas = context.canvas,
+                alpha = 0.2;
+
+            // START INIT MARKER
+
+            
+
+            markerStrokeStyle = hexToRGBA(fillStyleText.value, alpha)
+
+            markerSelectedColor.style.backgroundColor = 
+                markerSelectedColor2.style.backgroundColor = '#'+fillStyleText.value;
+
+            colors.forEach(function(colorRow) {
+                var row = '<tr>';
+
+                colorRow.forEach(function(color) {
+                    row += '<td style="background-color:#'+color+'" data-color="'+color+'"></td>';
+                })
+                row += '</tr>';
+
+                markerColorsList.innerHTML += row;
+            })
+
+            // console.log(markerColorsList.getElementsByTagName('td'))
+            Array.prototype.slice.call(markerColorsList.getElementsByTagName('td')).forEach(function(td) {
+                addEvent(td, 'mouseover', function() {
+                    var elColor = td.getAttribute('data-color');
+                    markerSelectedColor2.style.backgroundColor = '#'+elColor;
+                    fillStyleText.value = elColor
+                });
+
+                addEvent(td, 'click', function() {
+                    var elColor = td.getAttribute('data-color');
+                    markerSelectedColor.style.backgroundColor =
+                        markerSelectedColor2.style.backgroundColor = '#'+elColor;
+
+                    fillStyleText.value = elColor;
+
+
+                    markerColorContainer.style.display = 'none';
+                });
+            })
+
+            // END INIT MARKER
+
+            addEvent(canvas, 'click', function() {
+                hideContainers();
+
+                markerContainer.style.display = 'block';
+                markerContainer.style.top = (canvas.offsetTop + 1) + 'px';
+                markerContainer.style.left = (canvas.offsetLeft + canvas.clientWidth) + 'px';
+
+                fillStyleText.focus();
+            });
+
+            addEvent(btnMarkerDone, 'click', function() {
+                markerContainer.style.display = 'none';
+                markerColorContainer.style.display = 'none';
+                
+                markerLineWidth = strokeStyleText.value;
+                markerStrokeStyle = hexToRGBA(fillStyleText.value, alpha);
+            });
+
+            addEvent(markerSelectedColor, 'click', function() {
+                markerColorContainer.style.display = 'block';
+            });
+        }
+
+        if (tools.marker === true) {
+            decorateMarker();
+        } else document.getElementById('marker-icon').style.display = 'none';
+
+
         function decorateEraser() {
             var context = getContext('eraser-icon');
 
@@ -1052,9 +1200,15 @@
     function hideContainers() {
         var additionalContainer = find('additional-container'),
             colorsContainer = find('colors-container'),
+            markerContainer = find('marker-container'),
+            markerColorContainer = find('marker-fill-colors'),
             lineWidthContainer = find('line-width-container');
 
-        additionalContainer.style.display = colorsContainer.style.display = lineWidthContainer.style.display = 'none';
+        additionalContainer.style.display = 
+        colorsContainer.style.display = 
+        markerColorContainer.style.display = 
+        markerContainer .style.display = 
+        lineWidthContainer.style.display = 'none';
     }
 
     var drawHelper = {
@@ -1157,6 +1311,12 @@
             this.handleOptions(context, options);
         }
     };
+
+    var markerDrawHelper = clone(drawHelper);
+
+    markerDrawHelper.getOptions = function() {
+        return [markerLineWidth, markerStrokeStyle, fillStyle, globalAlpha, globalCompositeOperation, lineCap, lineJoin, font];
+    }
 
     var dragHelper = {
         global: {
@@ -1825,6 +1985,53 @@
         }
     };
 
+
+    var markerHandler = {
+        ismousedown: false,
+        prevX: 0,
+        prevY: 0,
+        mousedown: function(e) {
+            var x = e.pageX - canvas.offsetLeft,
+                y = e.pageY - canvas.offsetTop;
+
+            var t = this;
+
+            t.prevX = x;
+            t.prevY = y;
+
+            t.ismousedown = true;
+
+            // make sure that pencil is drawing shapes even 
+            // if mouse is down but mouse isn't moving
+            tempContext.lineCap = 'round';
+            markerDrawHelper.line(tempContext, [t.prevX, t.prevY, x, y]);
+
+            points[points.length] = ['line', [t.prevX, t.prevY, x, y], markerDrawHelper.getOptions()];
+
+            t.prevX = x;
+            t.prevY = y;
+        },
+        mouseup: function(e) {
+            this.ismousedown = false;
+        },
+        mousemove: function(e) {
+            var x = e.pageX - canvas.offsetLeft,
+                y = e.pageY - canvas.offsetTop;
+
+            var t = this;
+
+            if (t.ismousedown) {
+                tempContext.lineCap = 'round';
+                markerDrawHelper.line(tempContext, [t.prevX, t.prevY, x, y]);
+
+                points[points.length] = ['line', [t.prevX, t.prevY, x, y], markerDrawHelper.getOptions()];
+
+                t.prevX = x;
+                t.prevY = y;
+            }
+        }
+    }
+
     var eraserHandler = {
         ismousedown: false,
         prevX: 0,
@@ -2460,6 +2667,7 @@
         else if (cache.isPencil) pencilHandler.mousedown(e);
         else if (cache.isEraser) eraserHandler.mousedown(e);
         else if (cache.isText) textHandler.mousedown(e);
+        else if (cache.isMarker) markerHandler.mousedown(e);
         else if (cache.isImage) imageHandler.mousedown(e);
 
         drawHelper.redraw();
@@ -2482,6 +2690,7 @@
         else if (cache.isPencil) pencilHandler.mouseup(e);
         else if (cache.isEraser) eraserHandler.mouseup(e);
         else if (cache.isText) textHandler.mouseup(e);
+        else if (cache.isMarker) markerHandler.mouseup(e);
         else if (cache.isImage) imageHandler.mouseup(e);
 
         drawHelper.redraw();
@@ -2504,6 +2713,7 @@
         else if (cache.isPencil) pencilHandler.mousemove(e);
         else if (cache.isEraser) eraserHandler.mousemove(e);
         else if (cache.isText) textHandler.mousemove(e);
+        else if (cache.isMarker) markerHandler.mousemove(e);
         else if (cache.isImage) imageHandler.mousemove(e);
     });
 
@@ -2632,46 +2842,20 @@
     // it is used only to bring collaboration for canvas-surface
     var lastPointIndex = 0;
 
-    var uid;
+    var selfId = (Math.random() * 10000).toString().replace('.', '');
 
     window.addEventListener('message', function(event) {
         if (!event.data) return;
-
-        if (!uid) {
-            uid = event.data.uid;
-        }
-
         if (event.data.genDataURL) {
-            var dataURL = context.canvas.toDataURL(event.data.format, 1);
+            var dataURL = context.canvas.toDataURL(event.data.format);
             window.parent.postMessage({
-                dataURL: dataURL,
-                uid: uid
+                dataURL: dataURL
             }, '*');
             return;
         }
 
         if (event.data.undo && points.length) {
             var index = event.data.index;
-
-            if (index === 'all') {
-                points = [];
-                drawHelper.redraw();
-                syncPoints(true);
-                return;
-            }
-
-            if (index.numberOfLastShapes) {
-                try {
-                    points.length -= index.numberOfLastShapes;
-                } catch (e) {
-                    points = [];
-                }
-
-                drawHelper.redraw();
-                syncPoints(true);
-                return;
-            }
-
             if (index === -1) {
                 points.length = points.length - 1;
                 drawHelper.redraw();
@@ -2698,7 +2882,9 @@
             return;
         }
 
-        if (!event.data.canvasDesignerSyncData) return;
+        if (!event.data || !event.data.canvasDesignerSyncData) return;
+
+        if (event.data.sender && event.data.sender == selfId) return;
 
         // drawing is shared here (array of points)
         var d = event.data.canvasDesignerSyncData;
@@ -2744,7 +2930,7 @@
     function syncData(data) {
         window.parent.postMessage({
             canvasDesignerSyncData: data,
-            uid: uid
+            sender: selfId
         }, '*');
     }
 
